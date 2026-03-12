@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cleaning Lady Tracker</title>
+<style>
+  :root {
+    --primary: #0ea5e9;
+    --primary-dark: #0284c7;
+    --primary-light: #e0f2fe;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --success: #22c55e;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  .app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  header h1 span {
+    color: var(--primary);
+  }
+
+  .settings-btn {
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .settings-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  /* Settings modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .modal h2 {
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .form-group input[type="number"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+
+  .form-group input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 44px;
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .btn-primary:hover { background: var(--primary-dark); }
+
+  .btn-secondary {
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1.5px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  /* Visits section */
+  .section-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .section-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  /* Visit rows */
+  .visits-list {
+    padding: 8px 0;
+  }
+
+  .visit-row {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .visit-row:last-child { border-bottom: none; }
+
+  .visit-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .visit-number {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  .delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    font-size: 1rem;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .delete-btn:hover {
+    background: var(--danger-light);
+    color: var(--danger);
+  }
+
+  .time-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .time-field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .time-field input[type="time"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    min-height: 44px;
+  }
+
+  .time-field input[type="time"]:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .time-field input.error {
+    border-color: var(--danger);
+    background: var(--danger-light);
+  }
+
+  .visit-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+
+  .duration-text {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+
+  .cost-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary-dark);
+  }
+
+  .error-text {
+    font-size: 0.8rem;
+    color: var(--danger);
+    margin-top: 6px;
+  }
+
+  .empty-state {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .empty-state .icon { font-size: 2rem; margin-bottom: 8px; }
+
+  /* Add visit button */
+  .add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 16px;
+    min-height: 52px;
+  }
+
+  .add-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  /* Summary footer */
+  .summary-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .summary-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .summary-item .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .summary-item .value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .total-box {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .total-box .label {
+    color: rgba(255,255,255,0.85);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .total-box .amount {
+    color: white;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .paid-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--success);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .paid-btn:hover { background: #16a34a; }
+  .paid-btn:disabled {
+    background: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+
+  /* Confirm dialog */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .confirm-overlay.open { display: flex; }
+
+  .confirm-box {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 320px;
+    box-shadow: var(--shadow-md);
+    text-align: center;
+  }
+
+  .confirm-box .icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .confirm-box h3 { font-size: 1.1rem; margin-bottom: 8px; }
+  .confirm-box p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 20px; }
+
+  .confirm-actions { display: flex; gap: 10px; }
+
+  .btn-danger {
+    background: var(--danger);
+    color: white;
+  }
+
+  .btn-danger:hover { background: #dc2626; }
+
+  /* WhatsApp modal */
+  .wa-modal {
+    max-width: 480px;
+  }
+
+  .wa-modal h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .wa-textarea {
+    width: 100%;
+    min-height: 220px;
+    padding: 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+    resize: vertical;
+    font-family: inherit;
+    margin-bottom: 14px;
+  }
+
+  .wa-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .copy-feedback {
+    font-size: 0.8rem;
+    color: var(--success);
+    text-align: center;
+    min-height: 18px;
+    margin-bottom: 4px;
+  }
+
+  .btn-whatsapp {
+    background: #25D366;
+    color: white;
+  }
+
+  .btn-whatsapp:hover { background: #1ebe5a; }
+
+  /* Date field on visit rows */
+  .date-field {
+    margin-bottom: 10px;
+  }
+
+  .date-field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .date-field input[type="date"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    min-height: 44px;
+  }
+
+  .date-field input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  /* WhatsApp send button in summary */
+  .wa-btn {
+    width: 100%;
+    padding: 14px;
+    background: #25D366;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .wa-btn:hover { background: #1ebe5a; }
+  .wa-btn:disabled {
+    background: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <h1>Cleaning <span>Tracker</span></h1>
+    <button class="settings-btn" onclick="openSettings()">
+      ⚙️ Settings
+    </button>
+  </header>
+
+  <!-- Visits card -->
+  <div class="section-card">
+    <div class="section-header">
+      <h2>Visits</h2>
+    </div>
+    <div class="visits-list" id="visitsList">
+      <!-- rows injected here -->
+    </div>
+  </div>
+
+  <!-- Add visit -->
+  <button class="add-btn" onclick="addVisit()">
+    + Add Visit
+  </button>
+
+  <!-- Summary -->
+  <div class="summary-card">
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="label">Total Visits</div>
+        <div class="value" id="totalVisits">0</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Total Hours</div>
+        <div class="value" id="totalHours">0h 0m</div>
+      </div>
+    </div>
+    <div class="total-box">
+      <div class="label">Total to Pay</div>
+      <div class="amount" id="totalPay">₪0</div>
+    </div>
+    <button class="wa-btn" id="waBtn" onclick="openWhatsapp()" disabled>
+      📲 Send Summary via WhatsApp
+    </button>
+    <button class="paid-btn" id="paidBtn" onclick="confirmPaid()" disabled>
+      ✓ Mark as Paid / Reset
+    </button>
+  </div>
+
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ Settings</h2>
+    <div class="form-group">
+      <label>Hourly Rate (₪)</label>
+      <input type="number" id="settingRate" min="1" step="1" value="50">
+    </div>
+    <div class="form-group">
+      <label>Transport Fee per Visit (₪)</label>
+      <input type="number" id="settingTransport" min="0" step="1" value="20">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- WhatsApp Modal -->
+<div class="modal-overlay" id="waModal">
+  <div class="modal wa-modal">
+    <h2>📲 WhatsApp Summary</h2>
+    <textarea class="wa-textarea" id="waText" readonly></textarea>
+    <div class="copy-feedback" id="copyFeedback"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeWhatsapp()">Close</button>
+      <button class="btn btn-primary" onclick="copyText()">📋 Copy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="confirm-overlay" id="confirmModal">
+  <div class="confirm-box">
+    <div class="icon">💸</div>
+    <h3>Mark as Paid?</h3>
+    <p>This will clear all visits and start a new tracking period.</p>
+    <div class="confirm-actions">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" style="flex:1" onclick="doPaid()">Yes, Reset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'cleaning-visits';
+
+  // --- State ---
+  let state = {
+    settings: { rate: 50, transport: 20 },
+    visits: []
+  };
+
+  // --- Persistence ---
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        state.settings = { ...state.settings, ...(parsed.settings || {}) };
+        state.visits = parsed.visits || [];
+      }
+    } catch(e) {}
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  // --- Helpers ---
+  function uid() {
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function parseMinutes(timeStr) {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function calcDuration(arrival, departure) {
+    const a = parseMinutes(arrival);
+    const d = parseMinutes(departure);
+    if (a === null || d === null) return null;
+    if (d <= a) return -1; // error
+    return d - a; // minutes
+  }
+
+  function formatDuration(minutes) {
+    if (minutes <= 0) return '—';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  }
+
+  function calcCost(durationMinutes, rate, transport) {
+    if (durationMinutes <= 0) return 0;
+    const hours = durationMinutes / 60;
+    return hours * rate + transport;
+  }
+
+  function formatCurrency(amount) {
+    if (amount === 0) return '₪0';
+    return '₪' + amount.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+
+  // --- Render ---
+  function render() {
+    renderVisits();
+    renderSummary();
+  }
+
+  function renderVisits() {
+    const list = document.getElementById('visitsList');
+    if (state.visits.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🧹</div>
+          <div>No visits yet. Add the first one!</div>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = state.visits.map((v, i) => {
+      const dur = calcDuration(v.arrival, v.departure);
+      const isError = dur === -1;
+      const cost = isError ? 0 : calcCost(dur, state.settings.rate, state.settings.transport);
+      const hasData = v.arrival && v.departure;
+
+      return `
+        <div class="visit-row" data-id="${v.id}">
+          <div class="visit-row-header">
+            <span class="visit-number">Visit ${i + 1}</span>
+            <button class="delete-btn" onclick="deleteVisit('${v.id}')" title="Delete">
+              🗑
+            </button>
+          </div>
+          <div class="date-field">
+            <label>Date</label>
+            <input type="date" value="${v.date || ''}"
+              onchange="updateVisit('${v.id}', 'date', this.value)">
+          </div>
+          <div class="time-inputs">
+            <div class="time-field">
+              <label>Arrival</label>
+              <input type="time" value="${v.arrival || ''}"
+                class="${isError ? 'error' : ''}"
+                onchange="updateVisit('${v.id}', 'arrival', this.value)">
+            </div>
+            <div class="time-field">
+              <label>Departure</label>
+              <input type="time" value="${v.departure || ''}"
+                class="${isError ? 'error' : ''}"
+                onchange="updateVisit('${v.id}', 'departure', this.value)">
+            </div>
+          </div>
+          ${isError ? '<div class="error-text">⚠ Departure must be after arrival</div>' : ''}
+          <div class="visit-summary">
+            <span class="duration-text">${hasData && !isError && dur !== null ? formatDuration(dur) : (hasData && isError ? 'Invalid times' : 'Enter times above')}</span>
+            <span class="cost-text">${hasData && !isError && dur !== null && dur > 0 ? formatCurrency(cost) : '—'}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderSummary() {
+    let totalMinutes = 0;
+    let totalCost = 0;
+    let validVisits = 0;
+
+    for (const v of state.visits) {
+      const dur = calcDuration(v.arrival, v.departure);
+      if (dur !== null && dur > 0) {
+        totalMinutes += dur;
+        totalCost += calcCost(dur, state.settings.rate, state.settings.transport);
+        validVisits++;
+      }
+    }
+
+    document.getElementById('totalVisits').textContent = state.visits.length;
+    document.getElementById('totalHours').textContent = formatDuration(totalMinutes) || '0h 0m';
+    document.getElementById('totalPay').textContent = formatCurrency(totalCost);
+
+    const paidBtn = document.getElementById('paidBtn');
+    paidBtn.disabled = state.visits.length === 0;
+    const waBtn = document.getElementById('waBtn');
+    waBtn.disabled = state.visits.length === 0;
+  }
+
+  // --- Actions ---
+  function addVisit() {
+    state.visits.push({ id: uid(), date: '', arrival: '', departure: '' });
+    save();
+    render();
+    // scroll to bottom
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.visit-row');
+      if (rows.length) rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+
+  function deleteVisit(id) {
+    state.visits = state.visits.filter(v => v.id !== id);
+    save();
+    render();
+  }
+
+  function updateVisit(id, field, value) {
+    const visit = state.visits.find(v => v.id === id);
+    if (visit) {
+      visit[field] = value;
+      save();
+      renderSummary();
+      // Re-render row error state
+      const row = document.querySelector(`[data-id="${id}"]`);
+      if (row) {
+        const dur = calcDuration(visit.arrival, visit.departure);
+        const isError = dur === -1;
+        const inputs = row.querySelectorAll('input[type="time"]');
+        inputs.forEach(inp => {
+          inp.classList.toggle('error', isError && visit.arrival && visit.departure);
+        });
+        const errEl = row.querySelector('.error-text');
+        const summaryEl = row.querySelector('.visit-summary');
+
+        if (isError && visit.arrival && visit.departure) {
+          if (!errEl) {
+            const div = document.createElement('div');
+            div.className = 'error-text';
+            div.textContent = '⚠ Departure must be after arrival';
+            row.querySelector('.time-inputs').after(div);
+          }
+        } else if (errEl) {
+          errEl.remove();
+        }
+
+        if (summaryEl) {
+          const hasData = visit.arrival && visit.departure;
+          const cost = (!isError && dur !== null && dur > 0) ? calcCost(dur, state.settings.rate, state.settings.transport) : 0;
+          summaryEl.querySelector('.duration-text').textContent =
+            hasData && !isError && dur !== null && dur > 0 ? formatDuration(dur) : (hasData && isError ? 'Invalid times' : 'Enter times above');
+          summaryEl.querySelector('.cost-text').textContent =
+            hasData && !isError && dur !== null && dur > 0 ? formatCurrency(cost) : '—';
+        }
+      }
+    }
+  }
+
+  // --- Settings ---
+  function openSettings() {
+    document.getElementById('settingRate').value = state.settings.rate;
+    document.getElementById('settingTransport').value = state.settings.transport;
+    document.getElementById('settingsModal').classList.add('open');
+  }
+
+  function closeSettings() {
+    document.getElementById('settingsModal').classList.remove('open');
+  }
+
+  function saveSettings() {
+    const rate = parseFloat(document.getElementById('settingRate').value);
+    const transport = parseFloat(document.getElementById('settingTransport').value);
+    if (isNaN(rate) || rate <= 0) return alert('Please enter a valid hourly rate.');
+    if (isNaN(transport) || transport < 0) return alert('Please enter a valid transport fee.');
+    state.settings = { rate, transport };
+    save();
+    closeSettings();
+    render();
+  }
+
+  // Close modal on overlay click
+  document.getElementById('settingsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
+
+  // --- WhatsApp Summary ---
+  function formatDate(dateStr) {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function buildSummaryText() {
+    const lines = ['🧹 *Payment Summary*', ''];
+    let totalMinutes = 0;
+    let totalCost = 0;
+    let visitNum = 0;
+
+    for (const v of state.visits) {
+      const dur = calcDuration(v.arrival, v.departure);
+      if (dur === null || dur <= 0) continue;
+      visitNum++;
+      const cost = calcCost(dur, state.settings.rate, state.settings.transport);
+      totalMinutes += dur;
+      totalCost += cost;
+
+      const dateStr = formatDate(v.date) ? `${formatDate(v.date)} ` : '';
+      const timeStr = v.arrival && v.departure ? `${v.arrival}–${v.departure}` : '';
+      lines.push(`*Visit ${visitNum}:* ${dateStr}${timeStr}`);
+      lines.push(`  ⏱ ${formatDuration(dur)}  |  💰 ${formatCurrency(cost)}`);
+      lines.push('');
+    }
+
+    if (visitNum === 0) {
+      lines.push('No completed visits yet.');
+      lines.push('');
+    }
+
+    lines.push('─────────────────');
+    lines.push(`*Total hours:* ${formatDuration(totalMinutes) || '0'}`);
+    lines.push(`*Total visits:* ${visitNum}`);
+    lines.push(`*💵 Total to pay: ${formatCurrency(totalCost)}*`);
+    lines.push('');
+    lines.push('Thank you! 🙏');
+
+    return lines.join('\n');
+  }
+
+  function openWhatsapp() {
+    document.getElementById('waText').value = buildSummaryText();
+    document.getElementById('copyFeedback').textContent = '';
+    document.getElementById('waModal').classList.add('open');
+  }
+
+  function closeWhatsapp() {
+    document.getElementById('waModal').classList.remove('open');
+  }
+
+  function copyText() {
+    const text = document.getElementById('waText').value;
+    navigator.clipboard.writeText(text).then(() => {
+      document.getElementById('copyFeedback').textContent = '✓ Copied! Paste it in WhatsApp.';
+      setTimeout(() => {
+        document.getElementById('copyFeedback').textContent = '';
+      }, 3000);
+    }).catch(() => {
+      // Fallback for older browsers
+      document.getElementById('waText').select();
+      document.execCommand('copy');
+      document.getElementById('copyFeedback').textContent = '✓ Copied!';
+    });
+  }
+
+  document.getElementById('waModal').addEventListener('click', function(e) {
+    if (e.target === this) closeWhatsapp();
+  });
+
+  // --- Paid / Reset ---
+  function confirmPaid() {
+    document.getElementById('confirmModal').classList.add('open');
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirmModal').classList.remove('open');
+  }
+
+  function doPaid() {
+    state.visits = [];
+    save();
+    closeConfirm();
+    render();
+  }
+
+  document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeConfirm();
+  });
+
+  // --- Init ---
+  load();
+  render();
+</script>
+</body>
+</html>
