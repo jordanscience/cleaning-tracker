@@ -797,6 +797,7 @@
     <h1>Cleaning <span>Tracker</span></h1>
     <div class="header-actions">
       <span class="sync-pill" id="guestBadge" style="display:none; cursor:default"></span>
+      <button class="sync-pill" id="lockPill" style="display:none" onclick="unlockOwner()">🔒 Unlock</button>
       <button class="sync-pill" onclick="openSettings()" title="Sync status">
         <span class="sync-dot" id="syncDot"></span>
         <span id="syncLabel">Local</span>
@@ -899,6 +900,11 @@
       <input type="text" id="settingRoom" placeholder="e.g. jordan-7431" autocapitalize="none" autocomplete="off" spellcheck="false">
       <div class="hint" id="syncHint"></div>
     </div>
+    <div class="form-group">
+      <label>🔑 Admin Code</label>
+      <input type="text" id="settingAdmin" placeholder="Secret code only YOU know" autocapitalize="none" autocomplete="off" spellcheck="false">
+      <div class="hint">Locks owner actions (settle, cleaner links, settings) on any device that opens this account without the code. Leave empty for no lock.</div>
+    </div>
     <button class="btn btn-secondary" id="copyLinkBtn" style="width:100%; margin-bottom:14px; display:none" onclick="copyShareLink()">🔗 Copy Owner Link (full access)</button>
     <div class="form-group" id="shareSection" style="display:none">
       <label>👥 Cleaner Links</label>
@@ -946,6 +952,7 @@
 <script>
   const STORAGE_KEY = 'cleaning-visits';
   const ROOM_KEY = 'cleaning-room';
+  const ADMIN_KEY = 'cleaning-admin-code';
 
   // ── Firebase sync ────────────────────────────────────────────────
   const FIREBASE_CONFIG = {
@@ -965,7 +972,8 @@
     payments: [],
     carryover: 0,
     history: [],
-    guests: []
+    guests: [],
+    adminHash: null
   };
 
   // --- Persistence ---
@@ -980,6 +988,7 @@
         state.carryover = parsed.carryover || 0;
         state.history = parsed.history || [];
         state.guests = parsed.guests || [];
+        state.adminHash = parsed.adminHash || null;
       }
     } catch(e) {}
   }
@@ -1197,7 +1206,7 @@
     const hasActivity = state.visits.length > 0 || state.payments.length > 0;
     const paidBtn = document.getElementById('paidBtn');
     paidBtn.disabled = !hasActivity;
-    paidBtn.style.display = IS_GUEST ? 'none' : '';
+    paidBtn.style.display = ownerAllowed() ? '' : 'none';
     document.getElementById('waBtn').disabled = !hasActivity && !state.carryover;
   }
 
@@ -1254,7 +1263,7 @@
             ${carryLine}
             ${visitLines}
             ${paymentLines}
-            ${IS_GUEST ? '' : `<button class="history-delete" onclick="deleteHistory('${h.id}')">Delete this entry</button>`}
+            ${ownerAllowed() ? `<button class="history-delete" onclick="deleteHistory('${h.id}')">Delete this entry</button>` : ''}
           </div>
         </details>`;
     }).join('');
@@ -1347,7 +1356,7 @@
 
   // --- History ---
   function deleteHistory(id) {
-    if (IS_GUEST) return;
+    if (!ownerAllowed()) return;
     if (!confirm('Delete this history entry? This cannot be undone.')) return;
     state.history = state.history.filter(h => h.id !== id);
     save();
@@ -1356,10 +1365,11 @@
 
   // --- Settings ---
   function openSettings() {
-    if (IS_GUEST) return;
+    if (!ownerAllowed()) return;
     document.getElementById('settingRate').value = state.settings.rate;
     document.getElementById('settingTransport').value = state.settings.transport;
     document.getElementById('settingRoom').value = roomCode;
+    document.getElementById('settingAdmin').value = localStorage.getItem(ADMIN_KEY) || '';
 
     const hint = document.getElementById('syncHint');
     if (!FIREBASE_CONFIG) {
@@ -1380,12 +1390,25 @@
     document.getElementById('settingsModal').classList.remove('open');
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     const rate = parseFloat(document.getElementById('settingRate').value);
     const transport = parseFloat(document.getElementById('settingTransport').value);
     if (isNaN(rate) || rate <= 0) return alert('Please enter a valid hourly rate.');
     if (isNaN(transport) || transport < 0) return alert('Please enter a valid transport fee.');
     state.settings = { rate, transport };
+
+    const newAdmin = document.getElementById('settingAdmin').value.trim();
+    const oldAdmin = localStorage.getItem(ADMIN_KEY) || '';
+    if (newAdmin !== oldAdmin) {
+      if (newAdmin) {
+        state.adminHash = await sha256(newAdmin);
+        localStorage.setItem(ADMIN_KEY, newAdmin);
+      } else {
+        state.adminHash = null;
+        localStorage.removeItem(ADMIN_KEY);
+      }
+      adminUnlocked = true;
+    }
     save();
 
     const newRoom = document.getElementById('settingRoom').value.trim();
@@ -1589,7 +1612,7 @@
 
   // --- Settle / Archive ---
   function confirmPaid() {
-    if (IS_GUEST) return;
+    if (!ownerAllowed()) return;
     const t = computeTotals();
     const el = document.getElementById('confirmText');
     if (t.balance > 0.005) {
@@ -1607,7 +1630,7 @@
   }
 
   function doPaid() {
-    if (IS_GUEST) return;
+    if (!ownerAllowed()) return;
     const t = computeTotals();
 
     state.history.unshift({
@@ -1665,6 +1688,50 @@
   const IS_GUEST = role === 'guest';
   let remoteLoaded = false;
 
+  // --- Owner lock (admin code) ---
+  let adminUnlocked = true;
+
+  async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function ownerAllowed() {
+    return !IS_GUEST && adminUnlocked;
+  }
+
+  function updateLockUI() {
+    const locked = !IS_GUEST && !adminUnlocked;
+    document.getElementById('lockPill').style.display = locked ? 'flex' : 'none';
+    document.querySelector('.settings-btn').style.display = (IS_GUEST || locked) ? 'none' : '';
+    renderSummary();
+    renderHistory();
+  }
+
+  async function checkAdminUnlock() {
+    if (IS_GUEST) return;
+    if (!state.adminHash) {
+      adminUnlocked = true;
+      updateLockUI();
+      return;
+    }
+    const savedCode = localStorage.getItem(ADMIN_KEY) || '';
+    adminUnlocked = !!savedCode && (await sha256(savedCode)) === state.adminHash;
+    updateLockUI();
+  }
+
+  async function unlockOwner() {
+    const code = prompt('Enter the Admin Code:');
+    if (code === null) return;
+    if ((await sha256(code.trim())) === state.adminHash) {
+      localStorage.setItem(ADMIN_KEY, code.trim());
+      adminUnlocked = true;
+      updateLockUI();
+    } else {
+      alert('Wrong code.');
+    }
+  }
+
   let pendingRemote = null;
   let pushTimer = null;
 
@@ -1697,7 +1764,8 @@
         visits: toArray(h.visits),
         payments: toArray(h.payments)
       })),
-      guests: toArray(raw.guests)
+      guests: toArray(raw.guests),
+      adminHash: raw.adminHash || null
     };
   }
 
@@ -1745,6 +1813,7 @@
     render();
     updateGuestBadge();
     checkGuestAccess();
+    checkAdminUnlock();
   }
 
   document.addEventListener('focusout', () => {
@@ -1813,6 +1882,7 @@
 
   // --- Init ---
   load();
+  adminUnlocked = !state.adminHash;
   if (IS_GUEST) {
     document.querySelector('.settings-btn').style.display = 'none';
     const badge = document.getElementById('guestBadge');
@@ -1821,6 +1891,8 @@
   }
   render();
   updateGuestBadge();
+  updateLockUI();
+  checkAdminUnlock();
   initSync();
 </script>
 </body>
