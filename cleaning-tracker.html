@@ -123,7 +123,8 @@
     margin-bottom: 6px;
   }
 
-  .form-group input[type="number"] {
+  .form-group input[type="number"],
+  .form-group input[type="text"] {
     width: 100%;
     padding: 10px 14px;
     border: 1.5px solid var(--border);
@@ -135,9 +136,17 @@
     -webkit-appearance: none;
   }
 
-  .form-group input[type="number"]:focus {
+  .form-group input[type="number"]:focus,
+  .form-group input[type="text"]:focus {
     outline: none;
     border-color: var(--primary);
+  }
+
+  .form-group .hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.4;
   }
 
   .modal-actions {
@@ -693,6 +702,45 @@
   }
 
   .history-delete:hover { color: var(--danger); }
+
+  /* Sync status pill */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sync-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 10px;
+    background: none;
+    transition: all 0.15s;
+  }
+
+  .sync-pill:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .sync-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+    flex-shrink: 0;
+  }
+
+  .sync-dot.on { background: var(--success); }
+  .sync-dot.connecting { background: #f59e0b; }
+  .sync-dot.error { background: var(--danger); }
 </style>
 </head>
 <body>
@@ -701,9 +749,15 @@
   <!-- Header -->
   <header>
     <h1>Cleaning <span>Tracker</span></h1>
-    <button class="settings-btn" onclick="openSettings()">
-      ⚙️ Settings
-    </button>
+    <div class="header-actions">
+      <button class="sync-pill" onclick="openSettings()" title="Sync status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncLabel">Local</span>
+      </button>
+      <button class="settings-btn" onclick="openSettings()">
+        ⚙️ Settings
+      </button>
+    </div>
   </header>
 
   <!-- Visits card -->
@@ -793,6 +847,12 @@
       <label>Transport Fee per Visit (₪)</label>
       <input type="number" id="settingTransport" min="0" step="1" value="20">
     </div>
+    <div class="form-group">
+      <label>🔗 Sync Code</label>
+      <input type="text" id="settingRoom" placeholder="e.g. jordan-7431" autocapitalize="none" autocomplete="off" spellcheck="false">
+      <div class="hint" id="syncHint"></div>
+    </div>
+    <button class="btn btn-secondary" id="copyLinkBtn" style="width:100%; margin-bottom:4px; display:none" onclick="copyShareLink()">🔗 Copy Share Link</button>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -828,6 +888,23 @@
 
 <script>
   const STORAGE_KEY = 'cleaning-visits';
+  const ROOM_KEY = 'cleaning-room';
+
+  // ── Firebase sync (optional) ─────────────────────────────────────
+  // To enable real-time sync between devices, paste your Firebase
+  // web-app config here (Firebase console → Project settings → Your
+  // apps → SDK setup and configuration → Config). Example:
+  //
+  // const FIREBASE_CONFIG = {
+  //   apiKey: "AIza...",
+  //   authDomain: "cleaning-tracker-xxxx.firebaseapp.com",
+  //   databaseURL: "https://cleaning-tracker-xxxx-default-rtdb.europe-west1.firebasedatabase.app",
+  //   projectId: "cleaning-tracker-xxxx",
+  //   storageBucket: "cleaning-tracker-xxxx.appspot.com",
+  //   messagingSenderId: "...",
+  //   appId: "..."
+  // };
+  const FIREBASE_CONFIG = null;
 
   // --- State ---
   let state = {
@@ -855,6 +932,7 @@
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (window.__pushRemote) window.__pushRemote();
   }
 
   // --- Helpers ---
@@ -1215,6 +1293,18 @@
   function openSettings() {
     document.getElementById('settingRate').value = state.settings.rate;
     document.getElementById('settingTransport').value = state.settings.transport;
+    document.getElementById('settingRoom').value = roomCode;
+
+    const hint = document.getElementById('syncHint');
+    if (!FIREBASE_CONFIG) {
+      hint.textContent = '⚠ Sync backend not configured yet. This field has no effect until Firebase keys are added to the app.';
+    } else if (roomCode) {
+      hint.textContent = `Syncing as “${roomCode}”. Anyone who opens the app with this code sees the same data. Clear the field to go back to local-only.`;
+    } else {
+      hint.textContent = 'Choose a secret code (e.g. jordan-7431) and share it to sync this account across devices in real time.';
+    }
+    document.getElementById('copyLinkBtn').style.display = (FIREBASE_CONFIG && roomCode) ? 'block' : 'none';
+
     document.getElementById('settingsModal').classList.add('open');
   }
 
@@ -1229,8 +1319,29 @@
     if (isNaN(transport) || transport < 0) return alert('Please enter a valid transport fee.');
     state.settings = { rate, transport };
     save();
+
+    const newRoom = document.getElementById('settingRoom').value.trim();
+    if (newRoom !== roomCode) {
+      if (newRoom) localStorage.setItem(ROOM_KEY, newRoom);
+      else localStorage.removeItem(ROOM_KEY);
+      // Reload with the right URL so the sync connection is re-established cleanly
+      location.href = location.pathname + (newRoom ? '?room=' + encodeURIComponent(newRoom) : '');
+      return;
+    }
+
     closeSettings();
     render();
+  }
+
+  function copyShareLink() {
+    const url = location.origin + location.pathname + '?room=' + encodeURIComponent(roomCode);
+    const btn = document.getElementById('copyLinkBtn');
+    navigator.clipboard.writeText(url).then(() => {
+      btn.textContent = '✓ Link copied! Send it to her.';
+      setTimeout(() => { btn.textContent = '🔗 Copy Share Link'; }, 2500);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
   }
 
   // Close modal on overlay click
@@ -1391,9 +1502,137 @@
     if (e.target === this) closeConfirm();
   });
 
+  // --- Sync engine (Firebase Realtime Database) ---
+  let roomCode = localStorage.getItem(ROOM_KEY) || '';
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom && urlRoom.trim()) {
+    roomCode = urlRoom.trim();
+    localStorage.setItem(ROOM_KEY, roomCode);
+  }
+
+  let pendingRemote = null;
+  let pushTimer = null;
+
+  function setSyncStatus(s) {
+    const map = {
+      off: ['', 'Local'],
+      connecting: ['connecting', 'Syncing…'],
+      on: ['on', 'Synced'],
+      error: ['error', 'Sync error']
+    };
+    document.getElementById('syncDot').className = 'sync-dot ' + map[s][0];
+    document.getElementById('syncLabel').textContent = map[s][1];
+  }
+
+  // Firebase drops empty arrays, so rebuild a canonical shape from any snapshot
+  function toArray(x) {
+    if (!x) return [];
+    return Array.isArray(x) ? x : Object.values(x);
+  }
+
+  function normalizeState(raw) {
+    raw = raw || {};
+    return {
+      settings: { rate: 50, transport: 20, ...(raw.settings || {}) },
+      visits: toArray(raw.visits),
+      payments: toArray(raw.payments),
+      carryover: raw.carryover || 0,
+      history: toArray(raw.history).map(h => ({
+        ...h,
+        visits: toArray(h.visits),
+        payments: toArray(h.payments)
+      }))
+    };
+  }
+
+  function sortKeys(o) {
+    if (Array.isArray(o)) return o.map(sortKeys);
+    if (o && typeof o === 'object') {
+      const r = {};
+      Object.keys(o).sort().forEach(k => { r[k] = sortKeys(o[k]); });
+      return r;
+    }
+    return o;
+  }
+
+  function stableJSON(o) {
+    return JSON.stringify(sortKeys(o));
+  }
+
+  function isTypingInApp() {
+    const el = document.activeElement;
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.closest('.visit-row');
+  }
+
+  function applyRemote(remote) {
+    const normalized = normalizeState(remote);
+    if (stableJSON(normalized) === stableJSON(normalizeState(state))) return;
+    if (isTypingInApp()) {
+      // Don't yank inputs out from under the user; apply after they finish
+      pendingRemote = remote;
+      return;
+    }
+    state = normalized;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); // save without re-pushing
+    render();
+  }
+
+  document.addEventListener('focusout', () => {
+    if (!pendingRemote) return;
+    setTimeout(() => {
+      if (pendingRemote && !isTypingInApp()) {
+        const r = pendingRemote;
+        pendingRemote = null;
+        applyRemote(r);
+      }
+    }, 150);
+  });
+
+  async function initSync() {
+    if (!FIREBASE_CONFIG || !roomCode) {
+      setSyncStatus('off');
+      return;
+    }
+    setSyncStatus('connecting');
+    try {
+      const appMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+      const dbMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js');
+      const app = appMod.initializeApp(FIREBASE_CONFIG);
+      const db = dbMod.getDatabase(app);
+      const roomRef = dbMod.ref(db, 'rooms/' + roomCode);
+
+      window.__pushRemote = function() {
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(() => {
+          dbMod.set(roomRef, state)
+            .then(() => setSyncStatus('on'))
+            .catch(() => setSyncStatus('error'));
+        }, 300);
+      };
+
+      let first = true;
+      dbMod.onValue(roomRef, snap => {
+        const remote = snap.val();
+        setSyncStatus('on');
+        if (first) {
+          first = false;
+          if (!remote) {
+            // First device in the room: publish local data
+            window.__pushRemote();
+            return;
+          }
+        }
+        if (remote) applyRemote(remote);
+      }, () => setSyncStatus('error'));
+    } catch (e) {
+      setSyncStatus('error');
+    }
+  }
+
   // --- Init ---
   load();
   render();
+  initSync();
 </script>
 </body>
 </html>
