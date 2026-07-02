@@ -1466,6 +1466,7 @@
   }
 
   function createGuestLink() {
+    if (!ownerAllowed()) return;
     const input = document.getElementById('newGuestName');
     const name = input.value.trim();
     if (!name) return alert('Please enter a name for the link (e.g. Maria).');
@@ -1496,6 +1497,7 @@
   }
 
   function revokeGuest(id) {
+    if (!ownerAllowed()) return;
     const g = (state.guests || []).find(g => g.id === id);
     if (!g) return;
     if (!confirm(`Revoke ${g.name}'s link? Her device will lose access to this account.`)) return;
