@@ -570,6 +570,129 @@
     color: var(--text-muted);
     cursor: not-allowed;
   }
+
+  /* Payments */
+  .payment-number {
+    background: #dcfce7;
+    color: #16a34a;
+  }
+
+  .payment-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pay-field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .pay-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    min-height: 44px;
+  }
+
+  .pay-field input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  /* Balance box variants */
+  .total-box.settled {
+    background: linear-gradient(135deg, var(--success), #16a34a);
+  }
+
+  .carryover-note {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: -8px 0 14px;
+  }
+
+  /* History */
+  .history-entry {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-entry:last-child { border-bottom: none; }
+
+  .history-entry summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .history-entry summary::-webkit-details-marker { display: none; }
+
+  .history-date { font-weight: 600; font-size: 0.9rem; }
+
+  .history-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .history-amount {
+    text-align: right;
+    font-weight: 700;
+    color: var(--primary-dark);
+    white-space: nowrap;
+  }
+
+  .history-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    display: inline-block;
+    margin-top: 4px;
+  }
+
+  .badge-settled { background: #dcfce7; color: #16a34a; }
+  .badge-carry { background: #fef3c7; color: #b45309; }
+
+  .history-detail {
+    padding: 0 16px 14px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .history-detail .line {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    border-top: 1px dashed var(--border);
+  }
+
+  .history-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.78rem;
+    padding: 6px 0;
+    margin-top: 6px;
+    text-decoration: underline;
+  }
+
+  .history-delete:hover { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -598,6 +721,21 @@
     + Add Visit
   </button>
 
+  <!-- Payments card -->
+  <div class="section-card">
+    <div class="section-header">
+      <h2>Payments</h2>
+    </div>
+    <div class="visits-list" id="paymentsList">
+      <!-- rows injected here -->
+    </div>
+  </div>
+
+  <!-- Add payment -->
+  <button class="add-btn" onclick="addPayment()">
+    + Add Payment
+  </button>
+
   <!-- Summary -->
   <div class="summary-card">
     <div class="summary-grid">
@@ -609,17 +747,36 @@
         <div class="label">Total Hours</div>
         <div class="value" id="totalHours">0h 0m</div>
       </div>
+      <div class="summary-item">
+        <div class="label">Period Cost</div>
+        <div class="value" id="totalCost">₪0</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Total Paid</div>
+        <div class="value" id="totalPaid" style="color:var(--success)">₪0</div>
+      </div>
     </div>
-    <div class="total-box">
-      <div class="label">Total to Pay</div>
+    <div class="total-box" id="totalBox">
+      <div class="label" id="totalLabel">Balance Due</div>
       <div class="amount" id="totalPay">₪0</div>
     </div>
+    <div class="carryover-note" id="carryoverNote" style="display:none"></div>
     <button class="wa-btn" id="waBtn" onclick="openWhatsapp()" disabled>
       📲 Send Summary via WhatsApp
     </button>
     <button class="paid-btn" id="paidBtn" onclick="confirmPaid()" disabled>
-      ✓ Mark as Paid / Reset
+      ✓ Settle &amp; Archive Period
     </button>
+  </div>
+
+  <!-- History -->
+  <div class="section-card">
+    <div class="section-header">
+      <h2>📜 History</h2>
+    </div>
+    <div id="historyList">
+      <!-- entries injected here -->
+    </div>
   </div>
 
 </div>
@@ -660,11 +817,11 @@
 <div class="confirm-overlay" id="confirmModal">
   <div class="confirm-box">
     <div class="icon">💸</div>
-    <h3>Mark as Paid?</h3>
-    <p>This will clear all visits and start a new tracking period.</p>
+    <h3>Settle this period?</h3>
+    <p id="confirmText">The period will be archived to History and a new one will start.</p>
     <div class="confirm-actions">
       <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm()">Cancel</button>
-      <button class="btn btn-danger" style="flex:1" onclick="doPaid()">Yes, Reset</button>
+      <button class="btn btn-danger" style="flex:1" onclick="doPaid()">Yes, Settle</button>
     </div>
   </div>
 </div>
@@ -675,7 +832,10 @@
   // --- State ---
   let state = {
     settings: { rate: 50, transport: 20 },
-    visits: []
+    visits: [],
+    payments: [],
+    carryover: 0,
+    history: []
   };
 
   // --- Persistence ---
@@ -686,6 +846,9 @@
         const parsed = JSON.parse(raw);
         state.settings = { ...state.settings, ...(parsed.settings || {}) };
         state.visits = parsed.visits || [];
+        state.payments = parsed.payments || [];
+        state.carryover = parsed.carryover || 0;
+        state.history = parsed.history || [];
       }
     } catch(e) {}
   }
@@ -729,14 +892,42 @@
   }
 
   function formatCurrency(amount) {
-    if (amount === 0) return '₪0';
-    return '₪' + amount.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+    if (Math.abs(amount) < 0.005) return '₪0';
+    const sign = amount < 0 ? '-' : '';
+    return sign + '₪' + Math.abs(amount).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+
+  function round2(n) {
+    return Math.round(n * 100) / 100;
+  }
+
+  function computeTotals() {
+    let totalMinutes = 0;
+    let totalCost = 0;
+    let validVisits = 0;
+    for (const v of state.visits) {
+      const dur = calcDuration(v.arrival, v.departure);
+      if (dur !== null && dur > 0) {
+        totalMinutes += dur;
+        totalCost += calcCost(dur, state.settings.rate, state.settings.transport);
+        validVisits++;
+      }
+    }
+    let totalPaid = 0;
+    for (const p of state.payments) {
+      const a = parseFloat(p.amount);
+      if (!isNaN(a) && a > 0) totalPaid += a;
+    }
+    const balance = round2(totalCost + (state.carryover || 0) - totalPaid);
+    return { totalMinutes, totalCost: round2(totalCost), validVisits, totalPaid: round2(totalPaid), balance };
   }
 
   // --- Render ---
   function render() {
     renderVisits();
+    renderPayments();
     renderSummary();
+    renderHistory();
   }
 
   function renderVisits() {
@@ -792,28 +983,135 @@
     }).join('');
   }
 
-  function renderSummary() {
-    let totalMinutes = 0;
-    let totalCost = 0;
-    let validVisits = 0;
-
-    for (const v of state.visits) {
-      const dur = calcDuration(v.arrival, v.departure);
-      if (dur !== null && dur > 0) {
-        totalMinutes += dur;
-        totalCost += calcCost(dur, state.settings.rate, state.settings.transport);
-        validVisits++;
-      }
+  function renderPayments() {
+    const list = document.getElementById('paymentsList');
+    if (state.payments.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">💵</div>
+          <div>No payments yet. Add one when you pay all or part of the balance.</div>
+        </div>`;
+      return;
     }
 
-    document.getElementById('totalVisits').textContent = state.visits.length;
-    document.getElementById('totalHours').textContent = formatDuration(totalMinutes) || '0h 0m';
-    document.getElementById('totalPay').textContent = formatCurrency(totalCost);
+    list.innerHTML = state.payments.map((p, i) => `
+      <div class="visit-row" data-pid="${p.id}">
+        <div class="visit-row-header">
+          <span class="visit-number payment-number">Payment ${i + 1}</span>
+          <button class="delete-btn" onclick="deletePayment('${p.id}')" title="Delete">
+            🗑
+          </button>
+        </div>
+        <div class="payment-inputs">
+          <div class="pay-field">
+            <label>Date</label>
+            <input type="date" value="${p.date || ''}"
+              onchange="updatePayment('${p.id}', 'date', this.value)">
+          </div>
+          <div class="pay-field">
+            <label>Amount (₪)</label>
+            <input type="number" min="0" step="1" inputmode="decimal" placeholder="0"
+              value="${p.amount === '' || p.amount === null || p.amount === undefined ? '' : p.amount}"
+              onchange="updatePayment('${p.id}', 'amount', this.value)">
+          </div>
+        </div>
+      </div>`).join('');
+  }
 
-    const paidBtn = document.getElementById('paidBtn');
-    paidBtn.disabled = state.visits.length === 0;
-    const waBtn = document.getElementById('waBtn');
-    waBtn.disabled = state.visits.length === 0;
+  function renderSummary() {
+    const t = computeTotals();
+
+    document.getElementById('totalVisits').textContent = state.visits.length;
+    document.getElementById('totalHours').textContent = formatDuration(t.totalMinutes) || '0h 0m';
+    document.getElementById('totalCost').textContent = formatCurrency(t.totalCost);
+    document.getElementById('totalPaid').textContent = formatCurrency(t.totalPaid);
+    document.getElementById('totalPay').textContent = formatCurrency(t.balance);
+
+    const box = document.getElementById('totalBox');
+    const label = document.getElementById('totalLabel');
+    if (t.balance < -0.005) {
+      label.textContent = 'Credit (overpaid)';
+      box.classList.add('settled');
+    } else if (Math.abs(t.balance) < 0.005 && (state.visits.length > 0 || state.payments.length > 0)) {
+      label.textContent = 'All Settled';
+      box.classList.add('settled');
+    } else {
+      label.textContent = 'Balance Due';
+      box.classList.remove('settled');
+    }
+
+    const note = document.getElementById('carryoverNote');
+    if (state.carryover && Math.abs(state.carryover) >= 0.005) {
+      note.style.display = 'block';
+      note.textContent = state.carryover > 0
+        ? `Includes ${formatCurrency(state.carryover)} carried over from last period`
+        : `Includes ${formatCurrency(-state.carryover)} credit from last period`;
+    } else {
+      note.style.display = 'none';
+    }
+
+    const hasActivity = state.visits.length > 0 || state.payments.length > 0;
+    document.getElementById('paidBtn').disabled = !hasActivity;
+    document.getElementById('waBtn').disabled = !hasActivity && !state.carryover;
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (state.history.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📜</div>
+          <div>No settled periods yet. Settled periods will appear here.</div>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = state.history.map(h => {
+      const isSettled = Math.abs(h.balance) < 0.005;
+      const badge = isSettled
+        ? '<span class="history-badge badge-settled">Paid in full</span>'
+        : (h.balance > 0
+          ? `<span class="history-badge badge-carry">${formatCurrency(h.balance)} carried over</span>`
+          : `<span class="history-badge badge-settled">${formatCurrency(-h.balance)} credit</span>`);
+
+      const visitLines = (h.visits || []).map(v => {
+        const dur = calcDuration(v.arrival, v.departure);
+        if (dur === null || dur <= 0) return '';
+        const dateStr = formatDate(v.date) || 'No date';
+        return `<div class="line"><span>🧹 ${dateStr} · ${v.arrival}–${v.departure} (${formatDuration(dur)})</span><span>${formatCurrency(calcCost(dur, h.rate, h.transport))}</span></div>`;
+      }).join('');
+
+      const paymentLines = (h.payments || []).map(p => {
+        const a = parseFloat(p.amount);
+        if (isNaN(a) || a <= 0) return '';
+        return `<div class="line"><span>💵 Paid ${formatDate(p.date) || ''}</span><span>-${formatCurrency(a)}</span></div>`;
+      }).join('');
+
+      const carryLine = h.carryoverIn && Math.abs(h.carryoverIn) >= 0.005
+        ? `<div class="line"><span>↪ Carried over from previous period</span><span>${formatCurrency(h.carryoverIn)}</span></div>`
+        : '';
+
+      return `
+        <details class="history-entry">
+          <summary>
+            <div>
+              <div class="history-date">Settled ${formatDate(h.settledAt) || h.settledAt}</div>
+              <div class="history-sub">${h.visitCount} visit${h.visitCount === 1 ? '' : 's'} · ${formatDuration(h.totalMinutes)}</div>
+              ${badge}
+            </div>
+            <div class="history-amount">
+              ${formatCurrency(h.totalCost)}
+              <div class="history-sub">paid ${formatCurrency(h.totalPaid)}</div>
+            </div>
+          </summary>
+          <div class="history-detail">
+            ${carryLine}
+            ${visitLines}
+            ${paymentLines}
+            <button class="history-delete" onclick="deleteHistory('${h.id}')">Delete this entry</button>
+          </div>
+        </details>`;
+    }).join('');
   }
 
   // --- Actions ---
@@ -873,6 +1171,44 @@
         }
       }
     }
+  }
+
+  // --- Payments ---
+  function addPayment() {
+    const today = new Date();
+    const iso = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+    state.payments.push({ id: uid(), date: iso, amount: '' });
+    save();
+    render();
+    setTimeout(() => {
+      const rows = document.querySelectorAll('#paymentsList .visit-row');
+      if (rows.length) rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+
+  function deletePayment(id) {
+    state.payments = state.payments.filter(p => p.id !== id);
+    save();
+    render();
+  }
+
+  function updatePayment(id, field, value) {
+    const payment = state.payments.find(p => p.id === id);
+    if (payment) {
+      payment[field] = field === 'amount' ? (value === '' ? '' : parseFloat(value)) : value;
+      save();
+      renderSummary();
+    }
+  }
+
+  // --- History ---
+  function deleteHistory(id) {
+    if (!confirm('Delete this history entry? This cannot be undone.')) return;
+    state.history = state.history.filter(h => h.id !== id);
+    save();
+    render();
   }
 
   // --- Settings ---
@@ -935,10 +1271,39 @@
       lines.push('');
     }
 
+    if (state.carryover && Math.abs(state.carryover) >= 0.005) {
+      lines.push(state.carryover > 0
+        ? `↪ *Carried over from last period:* ${formatCurrency(state.carryover)}`
+        : `↪ *Credit from last period:* ${formatCurrency(-state.carryover)}`);
+      lines.push('');
+    }
+
+    const payments = state.payments.filter(p => {
+      const a = parseFloat(p.amount);
+      return !isNaN(a) && a > 0;
+    });
+    if (payments.length > 0) {
+      lines.push('*Payments received:*');
+      for (const p of payments) {
+        const dateStr = formatDate(p.date) ? `${formatDate(p.date)} — ` : '';
+        lines.push(`  💵 ${dateStr}${formatCurrency(parseFloat(p.amount))}`);
+      }
+      lines.push('');
+    }
+
+    const t = computeTotals();
     lines.push('─────────────────');
     lines.push(`*Total hours:* ${formatDuration(totalMinutes) || '0'}`);
     lines.push(`*Total visits:* ${visitNum}`);
-    lines.push(`*💵 Total to pay: ${formatCurrency(totalCost)}*`);
+    lines.push(`*Period cost:* ${formatCurrency(round2(totalCost + (state.carryover || 0)))}`);
+    if (t.totalPaid > 0) {
+      lines.push(`*Already paid:* ${formatCurrency(t.totalPaid)}`);
+    }
+    if (t.balance < -0.005) {
+      lines.push(`*💵 Credit (overpaid): ${formatCurrency(-t.balance)}*`);
+    } else {
+      lines.push(`*💵 Balance due: ${formatCurrency(t.balance)}*`);
+    }
     lines.push('');
     lines.push('Thank you! 🙏');
 
@@ -974,8 +1339,17 @@
     if (e.target === this) closeWhatsapp();
   });
 
-  // --- Paid / Reset ---
+  // --- Settle / Archive ---
   function confirmPaid() {
+    const t = computeTotals();
+    const el = document.getElementById('confirmText');
+    if (t.balance > 0.005) {
+      el.textContent = `The period will be archived to History. The unpaid balance of ${formatCurrency(t.balance)} will be carried over to the new period.`;
+    } else if (t.balance < -0.005) {
+      el.textContent = `The period will be archived to History. The overpaid ${formatCurrency(-t.balance)} will be carried over as credit.`;
+    } else {
+      el.textContent = 'Everything is paid. The period will be archived to History and a new one will start.';
+    }
     document.getElementById('confirmModal').classList.add('open');
   }
 
@@ -984,7 +1358,30 @@
   }
 
   function doPaid() {
+    const t = computeTotals();
+    const today = new Date();
+    const iso = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+
+    state.history.unshift({
+      id: uid(),
+      settledAt: iso,
+      visits: state.visits,
+      payments: state.payments,
+      carryoverIn: state.carryover || 0,
+      rate: state.settings.rate,
+      transport: state.settings.transport,
+      visitCount: t.validVisits,
+      totalMinutes: t.totalMinutes,
+      totalCost: round2(t.totalCost + (state.carryover || 0)),
+      totalPaid: t.totalPaid,
+      balance: t.balance
+    });
+
+    state.carryover = Math.abs(t.balance) < 0.005 ? 0 : t.balance;
     state.visits = [];
+    state.payments = [];
     save();
     closeConfirm();
     render();
