@@ -741,15 +741,62 @@
   .sync-dot.on { background: var(--success); }
   .sync-dot.connecting { background: #f59e0b; }
   .sync-dot.error { background: var(--danger); }
+
+  /* Cleaner links */
+  .guest-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+  }
+
+  .guest-row .guest-name { font-weight: 600; }
+
+  .guest-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 4px 6px;
+    border-radius: 6px;
+  }
+
+  .guest-actions button:hover { background: var(--border); }
+
+  /* Revoked guest access */
+  .revoked-banner {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--danger);
+    color: white;
+    text-align: center;
+    padding: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    z-index: 300;
+  }
+
+  body.revoked .revoked-banner { display: block; }
+  body.revoked .app { pointer-events: none; opacity: 0.5; }
 </style>
 </head>
 <body>
+<div class="revoked-banner">⛔ This link has been revoked by the account owner.</div>
 <div class="app">
 
   <!-- Header -->
   <header>
     <h1>Cleaning <span>Tracker</span></h1>
     <div class="header-actions">
+      <span class="sync-pill" id="guestBadge" style="display:none; cursor:default"></span>
       <button class="sync-pill" onclick="openSettings()" title="Sync status">
         <span class="sync-dot" id="syncDot"></span>
         <span id="syncLabel">Local</span>
@@ -852,7 +899,17 @@
       <input type="text" id="settingRoom" placeholder="e.g. jordan-7431" autocapitalize="none" autocomplete="off" spellcheck="false">
       <div class="hint" id="syncHint"></div>
     </div>
-    <button class="btn btn-secondary" id="copyLinkBtn" style="width:100%; margin-bottom:4px; display:none" onclick="copyShareLink()">🔗 Copy Share Link</button>
+    <button class="btn btn-secondary" id="copyLinkBtn" style="width:100%; margin-bottom:14px; display:none" onclick="copyShareLink()">🔗 Copy Owner Link (full access)</button>
+    <div class="form-group" id="shareSection" style="display:none">
+      <label>👥 Cleaner Links</label>
+      <div id="guestList"></div>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <input type="text" id="newGuestName" placeholder="Her name (e.g. Maria)" autocomplete="off" style="flex:1">
+        <button class="btn btn-primary" style="flex:0 0 auto; padding:10px 14px" onclick="createGuestLink()">+ Link</button>
+      </div>
+      <div class="hint" id="shareFeedback"></div>
+      <div class="hint">A cleaner link can add visits and payments, but cannot settle the account, delete history, or change settings.</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -912,7 +969,8 @@
     visits: [],
     payments: [],
     carryover: 0,
-    history: []
+    history: [],
+    guests: []
   };
 
   // --- Persistence ---
@@ -926,6 +984,7 @@
         state.payments = parsed.payments || [];
         state.carryover = parsed.carryover || 0;
         state.history = parsed.history || [];
+        state.guests = parsed.guests || [];
       }
     } catch(e) {}
   }
@@ -938,6 +997,18 @@
   // --- Helpers ---
   function uid() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function todayISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   function parseMinutes(timeStr) {
@@ -1129,7 +1200,9 @@
     }
 
     const hasActivity = state.visits.length > 0 || state.payments.length > 0;
-    document.getElementById('paidBtn').disabled = !hasActivity;
+    const paidBtn = document.getElementById('paidBtn');
+    paidBtn.disabled = !hasActivity;
+    paidBtn.style.display = IS_GUEST ? 'none' : '';
     document.getElementById('waBtn').disabled = !hasActivity && !state.carryover;
   }
 
@@ -1186,7 +1259,7 @@
             ${carryLine}
             ${visitLines}
             ${paymentLines}
-            <button class="history-delete" onclick="deleteHistory('${h.id}')">Delete this entry</button>
+            ${IS_GUEST ? '' : `<button class="history-delete" onclick="deleteHistory('${h.id}')">Delete this entry</button>`}
           </div>
         </details>`;
     }).join('');
@@ -1253,11 +1326,7 @@
 
   // --- Payments ---
   function addPayment() {
-    const today = new Date();
-    const iso = today.getFullYear() + '-' +
-      String(today.getMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getDate()).padStart(2, '0');
-    state.payments.push({ id: uid(), date: iso, amount: '' });
+    state.payments.push({ id: uid(), date: todayISO(), amount: '' });
     save();
     render();
     setTimeout(() => {
@@ -1283,6 +1352,7 @@
 
   // --- History ---
   function deleteHistory(id) {
+    if (IS_GUEST) return;
     if (!confirm('Delete this history entry? This cannot be undone.')) return;
     state.history = state.history.filter(h => h.id !== id);
     save();
@@ -1291,6 +1361,7 @@
 
   // --- Settings ---
   function openSettings() {
+    if (IS_GUEST) return;
     document.getElementById('settingRate').value = state.settings.rate;
     document.getElementById('settingTransport').value = state.settings.transport;
     document.getElementById('settingRoom').value = roomCode;
@@ -1304,6 +1375,8 @@
       hint.textContent = 'Choose a secret code (e.g. jordan-7431) and share it to sync this account across devices in real time.';
     }
     document.getElementById('copyLinkBtn').style.display = (FIREBASE_CONFIG && roomCode) ? 'block' : 'none';
+    document.getElementById('shareSection').style.display = (FIREBASE_CONFIG && roomCode) ? 'block' : 'none';
+    renderGuestLinks();
 
     document.getElementById('settingsModal').classList.add('open');
   }
@@ -1337,11 +1410,80 @@
     const url = location.origin + location.pathname + '?room=' + encodeURIComponent(roomCode);
     const btn = document.getElementById('copyLinkBtn');
     navigator.clipboard.writeText(url).then(() => {
-      btn.textContent = '✓ Link copied! Send it to her.';
-      setTimeout(() => { btn.textContent = '🔗 Copy Share Link'; }, 2500);
+      btn.textContent = '✓ Owner link copied!';
+      setTimeout(() => { btn.textContent = '🔗 Copy Owner Link (full access)'; }, 2500);
     }).catch(() => {
       prompt('Copy this link:', url);
     });
+  }
+
+  // --- Cleaner links (guest access) ---
+  function renderGuestLinks() {
+    const list = document.getElementById('guestList');
+    const guests = state.guests || [];
+    if (guests.length === 0) {
+      list.innerHTML = '<div class="hint">No cleaner links yet. Create one below and send it to her.</div>';
+      return;
+    }
+    list.innerHTML = guests.map(g => `
+      <div class="guest-row">
+        <span class="guest-name">👤 ${escapeHtml(g.name)}</span>
+        <span class="guest-actions">
+          <button onclick="copyGuestLink('${g.id}')" title="Copy link">📋</button>
+          <button onclick="revokeGuest('${g.id}')" title="Revoke link">🗑</button>
+        </span>
+      </div>`).join('');
+  }
+
+  function guestLinkUrl(id) {
+    return location.origin + location.pathname +
+      '?room=' + encodeURIComponent(roomCode) + '&guest=' + encodeURIComponent(id);
+  }
+
+  function shareFeedback(msg) {
+    const el = document.getElementById('shareFeedback');
+    el.textContent = msg;
+    el.style.color = 'var(--success)';
+    setTimeout(() => { el.textContent = ''; }, 3500);
+  }
+
+  function createGuestLink() {
+    const input = document.getElementById('newGuestName');
+    const name = input.value.trim();
+    if (!name) return alert('Please enter a name for the link (e.g. Maria).');
+    if (!roomCode) return alert('Set a Sync Code first.');
+    const g = { id: uid(), name, createdAt: todayISO() };
+    state.guests = state.guests || [];
+    state.guests.push(g);
+    save();
+    input.value = '';
+    renderGuestLinks();
+    const url = guestLinkUrl(g.id);
+    navigator.clipboard.writeText(url).then(() => {
+      shareFeedback(`✓ Link for ${name} copied — send it to her on WhatsApp.`);
+    }).catch(() => {
+      prompt(`Link for ${name} — copy it:`, url);
+    });
+  }
+
+  function copyGuestLink(id) {
+    const g = (state.guests || []).find(g => g.id === id);
+    if (!g) return;
+    const url = guestLinkUrl(id);
+    navigator.clipboard.writeText(url).then(() => {
+      shareFeedback(`✓ Link for ${g.name} copied.`);
+    }).catch(() => {
+      prompt(`Link for ${g.name} — copy it:`, url);
+    });
+  }
+
+  function revokeGuest(id) {
+    const g = (state.guests || []).find(g => g.id === id);
+    if (!g) return;
+    if (!confirm(`Revoke ${g.name}'s link? Her device will lose access to this account.`)) return;
+    state.guests = state.guests.filter(x => x.id !== id);
+    save();
+    renderGuestLinks();
   }
 
   // Close modal on overlay click
@@ -1452,6 +1594,7 @@
 
   // --- Settle / Archive ---
   function confirmPaid() {
+    if (IS_GUEST) return;
     const t = computeTotals();
     const el = document.getElementById('confirmText');
     if (t.balance > 0.005) {
@@ -1469,15 +1612,12 @@
   }
 
   function doPaid() {
+    if (IS_GUEST) return;
     const t = computeTotals();
-    const today = new Date();
-    const iso = today.getFullYear() + '-' +
-      String(today.getMonth() + 1).padStart(2, '0') + '-' +
-      String(today.getDate()).padStart(2, '0');
 
     state.history.unshift({
       id: uid(),
-      settledAt: iso,
+      settledAt: todayISO(),
       visits: state.visits,
       payments: state.payments,
       carryoverIn: state.carryover || 0,
@@ -1503,12 +1643,32 @@
   });
 
   // --- Sync engine (Firebase Realtime Database) ---
+  const ROLE_KEY = 'cleaning-role';
+  const GUEST_TOKEN_KEY = 'cleaning-guest-token';
+
   let roomCode = localStorage.getItem(ROOM_KEY) || '';
-  const urlRoom = new URLSearchParams(location.search).get('room');
+  let role = localStorage.getItem(ROLE_KEY) || 'owner';
+  let guestToken = localStorage.getItem(GUEST_TOKEN_KEY) || '';
+
+  const urlParams = new URLSearchParams(location.search);
+  const urlRoom = urlParams.get('room');
+  const urlGuest = urlParams.get('guest');
   if (urlRoom && urlRoom.trim()) {
     roomCode = urlRoom.trim();
     localStorage.setItem(ROOM_KEY, roomCode);
+    if (urlGuest && urlGuest.trim()) {
+      role = 'guest';
+      guestToken = urlGuest.trim();
+      localStorage.setItem(ROLE_KEY, 'guest');
+      localStorage.setItem(GUEST_TOKEN_KEY, guestToken);
+    } else {
+      role = 'owner';
+      localStorage.setItem(ROLE_KEY, 'owner');
+      localStorage.removeItem(GUEST_TOKEN_KEY);
+    }
   }
+  const IS_GUEST = role === 'guest';
+  let remoteLoaded = false;
 
   let pendingRemote = null;
   let pushTimer = null;
@@ -1541,8 +1701,21 @@
         ...h,
         visits: toArray(h.visits),
         payments: toArray(h.payments)
-      }))
+      })),
+      guests: toArray(raw.guests)
     };
+  }
+
+  function updateGuestBadge() {
+    if (!IS_GUEST) return;
+    const g = (state.guests || []).find(g => g.id === guestToken);
+    document.getElementById('guestBadge').textContent = '👤 ' + (g ? g.name : 'Cleaner');
+  }
+
+  function checkGuestAccess() {
+    if (!IS_GUEST || !remoteLoaded) return;
+    const ok = (state.guests || []).some(g => g.id === guestToken);
+    document.body.classList.toggle('revoked', !ok);
   }
 
   function sortKeys(o) {
@@ -1575,6 +1748,8 @@
     state = normalized;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); // save without re-pushing
     render();
+    updateGuestBadge();
+    checkGuestAccess();
   }
 
   document.addEventListener('focusout', () => {
@@ -1602,6 +1777,7 @@
       const roomRef = dbMod.ref(db, 'rooms/' + roomCode);
 
       window.__pushRemote = function() {
+        if (document.body.classList.contains('revoked')) return;
         clearTimeout(pushTimer);
         pushTimer = setTimeout(() => {
           dbMod.set(roomRef, state)
@@ -1617,12 +1793,23 @@
         if (first) {
           first = false;
           if (!remote) {
+            if (IS_GUEST) {
+              // A guest can't seed an empty room; wait for the owner's data
+              remoteLoaded = true;
+              checkGuestAccess();
+              return;
+            }
             // First device in the room: publish local data
             window.__pushRemote();
             return;
           }
         }
-        if (remote) applyRemote(remote);
+        if (remote) {
+          remoteLoaded = true;
+          applyRemote(remote);
+          updateGuestBadge();
+          checkGuestAccess();
+        }
       }, () => setSyncStatus('error'));
     } catch (e) {
       setSyncStatus('error');
@@ -1631,7 +1818,14 @@
 
   // --- Init ---
   load();
+  if (IS_GUEST) {
+    document.querySelector('.settings-btn').style.display = 'none';
+    const badge = document.getElementById('guestBadge');
+    badge.style.display = 'flex';
+    badge.textContent = '👤 Cleaner';
+  }
   render();
+  updateGuestBadge();
   initSync();
 </script>
 </body>
