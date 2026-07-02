@@ -947,21 +947,16 @@
   const STORAGE_KEY = 'cleaning-visits';
   const ROOM_KEY = 'cleaning-room';
 
-  // ── Firebase sync (optional) ─────────────────────────────────────
-  // To enable real-time sync between devices, paste your Firebase
-  // web-app config here (Firebase console → Project settings → Your
-  // apps → SDK setup and configuration → Config). Example:
-  //
-  // const FIREBASE_CONFIG = {
-  //   apiKey: "AIza...",
-  //   authDomain: "cleaning-tracker-xxxx.firebaseapp.com",
-  //   databaseURL: "https://cleaning-tracker-xxxx-default-rtdb.europe-west1.firebasedatabase.app",
-  //   projectId: "cleaning-tracker-xxxx",
-  //   storageBucket: "cleaning-tracker-xxxx.appspot.com",
-  //   messagingSenderId: "...",
-  //   appId: "..."
-  // };
-  const FIREBASE_CONFIG = null;
+  // ── Firebase sync ────────────────────────────────────────────────
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDOrjr_ykI0IvYw3wqhbUs5Ghot4Ii5Mao",
+    authDomain: "cleaning-tracker-tlv.firebaseapp.com",
+    databaseURL: "https://cleaning-tracker-tlv-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "cleaning-tracker-tlv",
+    storageBucket: "cleaning-tracker-tlv.firebasestorage.app",
+    messagingSenderId: "276585905432",
+    appId: "1:276585905432:web:4d7a8ab45e71451e97b26d"
+  };
 
   // --- State ---
   let state = {
