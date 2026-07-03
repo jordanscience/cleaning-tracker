@@ -468,6 +468,7 @@
   .confirm-box p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 20px; }
 
   .confirm-actions { display: flex; gap: 10px; }
+  .confirm-actions.stacked { flex-direction: column; }
 
   .btn-danger {
     background: var(--danger);
@@ -742,6 +743,52 @@
   .sync-dot.connecting { background: #f59e0b; }
   .sync-dot.error { background: var(--danger); }
 
+  /* Share bar */
+  .share-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .share-row:last-child { border-bottom: none; }
+
+  .share-row .share-info { flex: 1; min-width: 0; }
+
+  .share-row .share-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .share-row .share-url {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .share-copy-btn {
+    flex-shrink: 0;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    min-height: 40px;
+  }
+
+  .share-copy-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+
   /* Cleaner links */
   .guest-row {
     display: flex;
@@ -807,6 +854,11 @@
       </button>
     </div>
   </header>
+
+  <!-- Share bar (owner only) -->
+  <div class="section-card" id="shareBar" style="display:none">
+    <div id="shareBarList"></div>
+  </div>
 
   <!-- Visits card -->
   <div class="section-card">
@@ -942,9 +994,9 @@
     <div class="icon">💸</div>
     <h3>Settle this period?</h3>
     <p id="confirmText">The period will be archived to History and a new one will start.</p>
-    <div class="confirm-actions">
+    <div class="confirm-actions" id="confirmActions">
       <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm()">Cancel</button>
-      <button class="btn btn-danger" style="flex:1" onclick="doPaid()">Yes, Settle</button>
+      <button class="btn btn-danger" style="flex:1" onclick="doPaid('carry')">Yes, Settle</button>
     </div>
   </div>
 </div>
@@ -1081,6 +1133,7 @@
     renderPayments();
     renderSummary();
     renderHistory();
+    renderShareBar();
   }
 
   function renderVisits() {
@@ -1458,6 +1511,38 @@
       '?room=' + encodeURIComponent(roomCode) + '&guest=' + encodeURIComponent(id);
   }
 
+  // --- Share bar (top of page) ---
+  function renderShareBar() {
+    const bar = document.getElementById('shareBar');
+    const guests = state.guests || [];
+    const show = ownerAllowed() && FIREBASE_CONFIG && roomCode && guests.length > 0;
+    if (!show) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = '';
+    document.getElementById('shareBarList').innerHTML = guests.map(g => `
+      <div class="share-row">
+        <div class="share-info">
+          <div class="share-name">🔗 Link for ${escapeHtml(g.name)}</div>
+          <div class="share-url">${escapeHtml(guestLinkUrl(g.id))}</div>
+        </div>
+        <button class="share-copy-btn" onclick="copyShareRow('${g.id}', this)">📋 Copy</button>
+      </div>`).join('');
+  }
+
+  function copyShareRow(id, btn) {
+    const g = (state.guests || []).find(g => g.id === id);
+    if (!g) return;
+    const url = guestLinkUrl(id);
+    navigator.clipboard.writeText(url).then(() => {
+      btn.textContent = '✓ Copied';
+      setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+    }).catch(() => {
+      prompt(`Link for ${g.name} — copy it:`, url);
+    });
+  }
+
   function shareFeedback(msg) {
     const el = document.getElementById('shareFeedback');
     el.textContent = msg;
@@ -1477,6 +1562,7 @@
     save();
     input.value = '';
     renderGuestLinks();
+    renderShareBar();
     const url = guestLinkUrl(g.id);
     navigator.clipboard.writeText(url).then(() => {
       shareFeedback(`✓ Link for ${name} copied — send it to her on WhatsApp.`);
@@ -1504,6 +1590,7 @@
     state.guests = state.guests.filter(x => x.id !== id);
     save();
     renderGuestLinks();
+    renderShareBar();
   }
 
   // Close modal on overlay click
@@ -1617,12 +1704,26 @@
     if (!ownerAllowed()) return;
     const t = computeTotals();
     const el = document.getElementById('confirmText');
+    const actions = document.getElementById('confirmActions');
     if (t.balance > 0.005) {
-      el.textContent = `The period will be archived to History. The unpaid balance of ${formatCurrency(t.balance)} will be carried over to the new period.`;
+      el.textContent = `There is an unpaid balance of ${formatCurrency(t.balance)}. How do you want to close this period?`;
+      actions.classList.add('stacked');
+      actions.innerHTML = `
+        <button class="btn btn-primary" style="background:var(--success)" onclick="doPaid('settled')">✓ All paid — record ${formatCurrency(t.balance)} received</button>
+        <button class="btn btn-primary" onclick="doPaid('carry')">↪ Carry ${formatCurrency(t.balance)} to next period</button>
+        <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>`;
     } else if (t.balance < -0.005) {
       el.textContent = `The period will be archived to History. The overpaid ${formatCurrency(-t.balance)} will be carried over as credit.`;
+      actions.classList.remove('stacked');
+      actions.innerHTML = `
+        <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm()">Cancel</button>
+        <button class="btn btn-danger" style="flex:1" onclick="doPaid('carry')">Yes, Settle</button>`;
     } else {
       el.textContent = 'Everything is paid. The period will be archived to History and a new one will start.';
+      actions.classList.remove('stacked');
+      actions.innerHTML = `
+        <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm()">Cancel</button>
+        <button class="btn btn-danger" style="flex:1" onclick="doPaid('carry')">Yes, Settle</button>`;
     }
     document.getElementById('confirmModal').classList.add('open');
   }
@@ -1631,9 +1732,15 @@
     document.getElementById('confirmModal').classList.remove('open');
   }
 
-  function doPaid() {
+  function doPaid(mode) {
     if (!ownerAllowed()) return;
-    const t = computeTotals();
+    let t = computeTotals();
+
+    if (mode === 'settled' && t.balance > 0.005) {
+      // Record the final payment automatically so the books balance out
+      state.payments.push({ id: uid(), date: todayISO(), amount: t.balance });
+      t = computeTotals();
+    }
 
     state.history.unshift({
       id: uid(),
@@ -1708,6 +1815,7 @@
     document.querySelector('.settings-btn').style.display = (IS_GUEST || locked) ? 'none' : '';
     renderSummary();
     renderHistory();
+    renderShareBar();
   }
 
   async function checkAdminUnlock() {
