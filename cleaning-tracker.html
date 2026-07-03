@@ -789,32 +789,6 @@
     background: var(--primary-light);
   }
 
-  /* Cleaner links */
-  .guest-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 10px;
-    background: var(--bg);
-    border-radius: 8px;
-    margin-bottom: 6px;
-    font-size: 0.875rem;
-  }
-
-  .guest-row .guest-name { font-weight: 600; }
-
-  .guest-actions button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.95rem;
-    padding: 4px 6px;
-    border-radius: 6px;
-  }
-
-  .guest-actions button:hover { background: var(--border); }
-
   /* Revoked guest access */
   .revoked-banner {
     display: none;
@@ -958,16 +932,6 @@
       <div class="hint">Locks owner actions (settle, cleaner links, settings) on any device that opens this account without the code. Leave empty for no lock.</div>
     </div>
     <button class="btn btn-secondary" id="copyLinkBtn" style="width:100%; margin-bottom:14px; display:none" onclick="copyShareLink()">🔗 Copy Owner Link (full access)</button>
-    <div class="form-group" id="shareSection" style="display:none">
-      <label>👥 Cleaner Links</label>
-      <div id="guestList"></div>
-      <div style="display:flex; gap:8px; margin-top:8px">
-        <input type="text" id="newGuestName" placeholder="Her name (e.g. Maria)" autocomplete="off" style="flex:1">
-        <button class="btn btn-primary" style="flex:0 0 auto; padding:10px 14px" onclick="createGuestLink()">+ Link</button>
-      </div>
-      <div class="hint" id="shareFeedback"></div>
-      <div class="hint">A cleaner link can add visits and payments, but cannot settle the account, delete history, or change settings.</div>
-    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -1433,8 +1397,6 @@
       hint.textContent = 'Choose a secret code (e.g. jordan-7431) and share it to sync this account across devices in real time.';
     }
     document.getElementById('copyLinkBtn').style.display = (FIREBASE_CONFIG && roomCode) ? 'block' : 'none';
-    document.getElementById('shareSection').style.display = (FIREBASE_CONFIG && roomCode) ? 'block' : 'none';
-    renderGuestLinks();
 
     document.getElementById('settingsModal').classList.add('open');
   }
@@ -1488,24 +1450,7 @@
     });
   }
 
-  // --- Cleaner links (guest access) ---
-  function renderGuestLinks() {
-    const list = document.getElementById('guestList');
-    const guests = state.guests || [];
-    if (guests.length === 0) {
-      list.innerHTML = '<div class="hint">No cleaner links yet. Create one below and send it to her.</div>';
-      return;
-    }
-    list.innerHTML = guests.map(g => `
-      <div class="guest-row">
-        <span class="guest-name">👤 ${escapeHtml(g.name)}</span>
-        <span class="guest-actions">
-          <button onclick="copyGuestLink('${g.id}')" title="Copy link">📋</button>
-          <button onclick="revokeGuest('${g.id}')" title="Revoke link">🗑</button>
-        </span>
-      </div>`).join('');
-  }
-
+  // --- Cleaner link (guest access, single link) ---
   function guestLinkUrl(id) {
     return location.origin + location.pathname +
       '?room=' + encodeURIComponent(roomCode) + '&guest=' + encodeURIComponent(id);
@@ -1514,83 +1459,64 @@
   // --- Share bar (top of page) ---
   function renderShareBar() {
     const bar = document.getElementById('shareBar');
-    const guests = state.guests || [];
-    const show = ownerAllowed() && FIREBASE_CONFIG && roomCode && guests.length > 0;
+    const show = ownerAllowed() && FIREBASE_CONFIG && roomCode;
     if (!show) {
       bar.style.display = 'none';
       return;
     }
     bar.style.display = '';
-    document.getElementById('shareBarList').innerHTML = guests.map(g => `
+    const g = (state.guests || [])[0];
+    if (!g) {
+      document.getElementById('shareBarList').innerHTML = `
+        <div class="share-row">
+          <div class="share-info">
+            <div class="share-name">🔗 Cleaner link</div>
+            <div class="share-url">Create the link to share this account with your cleaner</div>
+          </div>
+          <button class="share-copy-btn" onclick="createCleanerLink()">➕ Create</button>
+        </div>`;
+      return;
+    }
+    document.getElementById('shareBarList').innerHTML = `
       <div class="share-row">
         <div class="share-info">
-          <div class="share-name">🔗 Link for ${escapeHtml(g.name)}</div>
+          <div class="share-name">🔗 Cleaner link</div>
           <div class="share-url">${escapeHtml(guestLinkUrl(g.id))}</div>
         </div>
-        <button class="share-copy-btn" onclick="copyShareRow('${g.id}', this)">📋 Copy</button>
-      </div>`).join('');
+        <button class="share-copy-btn" onclick="copyCleanerLink(this)">📋 Copy</button>
+        <button class="share-copy-btn" onclick="regenerateCleanerLink()" title="Disable the current link and create a new one">🔄</button>
+      </div>`;
   }
 
-  function copyShareRow(id, btn) {
-    const g = (state.guests || []).find(g => g.id === id);
+  function copyCleanerLink(btn) {
+    const g = (state.guests || [])[0];
     if (!g) return;
-    const url = guestLinkUrl(id);
-    navigator.clipboard.writeText(url).then(() => {
-      btn.textContent = '✓ Copied';
-      setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
-    }).catch(() => {
-      prompt(`Link for ${g.name} — copy it:`, url);
-    });
-  }
-
-  function shareFeedback(msg) {
-    const el = document.getElementById('shareFeedback');
-    el.textContent = msg;
-    el.style.color = 'var(--success)';
-    setTimeout(() => { el.textContent = ''; }, 3500);
-  }
-
-  function createGuestLink() {
-    if (!ownerAllowed()) return;
-    const input = document.getElementById('newGuestName');
-    const name = input.value.trim();
-    if (!name) return alert('Please enter a name for the link (e.g. Maria).');
-    if (!roomCode) return alert('Set a Sync Code first.');
-    const g = { id: uid(), name, createdAt: todayISO() };
-    state.guests = state.guests || [];
-    state.guests.push(g);
-    save();
-    input.value = '';
-    renderGuestLinks();
-    renderShareBar();
     const url = guestLinkUrl(g.id);
     navigator.clipboard.writeText(url).then(() => {
-      shareFeedback(`✓ Link for ${name} copied — send it to her on WhatsApp.`);
+      if (btn) {
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+      }
     }).catch(() => {
-      prompt(`Link for ${name} — copy it:`, url);
+      prompt('Copy this link:', url);
     });
   }
 
-  function copyGuestLink(id) {
-    const g = (state.guests || []).find(g => g.id === id);
-    if (!g) return;
-    const url = guestLinkUrl(id);
-    navigator.clipboard.writeText(url).then(() => {
-      shareFeedback(`✓ Link for ${g.name} copied.`);
-    }).catch(() => {
-      prompt(`Link for ${g.name} — copy it:`, url);
-    });
-  }
-
-  function revokeGuest(id) {
+  function createCleanerLink() {
     if (!ownerAllowed()) return;
-    const g = (state.guests || []).find(g => g.id === id);
-    if (!g) return;
-    if (!confirm(`Revoke ${g.name}'s link? Her device will lose access to this account.`)) return;
-    state.guests = state.guests.filter(x => x.id !== id);
+    state.guests = [{ id: uid(), name: 'Cleaner', createdAt: todayISO() }];
     save();
-    renderGuestLinks();
     renderShareBar();
+    copyCleanerLink(document.querySelector('#shareBarList .share-copy-btn'));
+  }
+
+  function regenerateCleanerLink() {
+    if (!ownerAllowed()) return;
+    if (!confirm('Regenerate the cleaner link? The old link will stop working immediately.')) return;
+    state.guests = [{ id: uid(), name: 'Cleaner', createdAt: todayISO() }];
+    save();
+    renderShareBar();
+    copyCleanerLink(document.querySelector('#shareBarList .share-copy-btn'));
   }
 
   // Close modal on overlay click
